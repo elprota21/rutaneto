@@ -66,6 +66,8 @@ create function pr_datos_chofer(p_empresa uuid, p_chofer uuid)
 returns jsonb language plpgsql stable security definer as $$
 declare
   u usuarios;
+  e empresas;
+  lic licencias;
   foto jsonb;
 begin
   select * into u from usuarios
@@ -73,6 +75,27 @@ begin
     and rol in ('chofer', 'coordinador');
   if u.id is null then
     raise exception 'Chofer no encontrado en esta empresa';
+  end if;
+
+  -- Empresa activa y licencia vigente, igual que en pr_iniciar_sesion:
+  -- la app persiste la sesión en el teléfono y revalida contra esta
+  -- función al reabrir; si la empresa se desactivó o la licencia
+  -- venció/se suspendió, la revalidación lo detecta y la app expulsa
+  -- la sesión guardada con este mensaje.
+  select * into e from empresas where id = p_empresa;
+  if e.id is null or not e.activa then
+    raise exception 'Tu empresa está inactiva. Contacta a RutaNeto.';
+  end if;
+  select * into lic from licencias where empresa_id = p_empresa
+  order by creada_en desc limit 1;
+  if lic.id is null then
+    raise exception 'Tu empresa todavía no tiene licencia. Contacta a RutaNeto.';
+  end if;
+  if lic.estado = 'suspendida' then
+    raise exception 'La licencia de tu empresa está suspendida. Contacta a RutaNeto.';
+  end if;
+  if lic.estado = 'vencida' or (lic.vence is not null and lic.vence < current_date) then
+    raise exception 'La licencia de tu empresa está vencida. Contacta a RutaNeto para renovarla.';
   end if;
 
   -- La foto completa, igual para chofer y coordinador: el coordinador

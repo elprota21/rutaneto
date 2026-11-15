@@ -336,7 +336,48 @@ begin
     'novedades autor: el panel ve el nombre del chofer';
 end $$;
 
--- 11) Seguridad tras el drop + recreate: los roles de oficina siguen
+-- 11) Revalidación de la sesión persistida: pr_datos_chofer rechaza
+-- con el mensaje del login si la licencia se suspende o vence, o si
+-- la empresa se desactiva (la app, al reabrir, expulsa la sesión
+-- guardada con ese mensaje). Todo se restaura dentro del bloque.
+do $$
+declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
+declare ch1 uuid := 'a0000000-0000-0000-0000-000000000104';
+declare msg text; d jsonb;
+begin
+  update licencias set estado = 'suspendida' where empresa_id = emp;
+  begin
+    perform pr_datos_chofer(emp, ch1);
+    raise exception 'debió rechazar por licencia suspendida';
+  exception when others then msg := sqlerrm;
+  end;
+  assert msg like 'La licencia de tu empresa está suspendida%',
+    'novedades revalida: licencia suspendida expulsa';
+  update licencias set estado = 'activa', vence = current_date - 1
+  where empresa_id = emp;
+  begin
+    perform pr_datos_chofer(emp, ch1);
+    raise exception 'debió rechazar por licencia vencida';
+  exception when others then msg := sqlerrm;
+  end;
+  assert msg like 'La licencia de tu empresa está vencida%',
+    'novedades revalida: licencia vencida expulsa';
+  update licencias set vence = date '2027-11-15' where empresa_id = emp;
+  update empresas set activa = false where id = emp;
+  begin
+    perform pr_datos_chofer(emp, ch1);
+    raise exception 'debió rechazar por empresa inactiva';
+  exception when others then msg := sqlerrm;
+  end;
+  assert msg like 'Tu empresa está inactiva%',
+    'novedades revalida: empresa inactiva expulsa';
+  update empresas set activa = true where id = emp;
+  d := pr_datos_chofer(emp, ch1);
+  assert jsonb_array_length(d -> 'anotaciones') >= 1,
+    'novedades revalida: restaurado todo, la foto vuelve';
+end $$;
+
+-- 12) Seguridad tras el drop + recreate: los roles de oficina siguen
 -- rechazados y queda UNA sola versión de la función.
 do $$
 declare ok boolean := false; n int;
