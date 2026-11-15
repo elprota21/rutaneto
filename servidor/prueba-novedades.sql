@@ -399,4 +399,55 @@ begin
   assert n = 1, 'novedades: debe quedar una sola pr_datos_chofer';
 end $$;
 
+-- 13) EL SALDO COMO LO VE LA APP: con un rol tipo `anon` de
+-- PostgREST (RLS activa, sin políticas, con select concedido como en
+-- Supabase), pr_mi_ganado y pr_resumen_chofer deben devolver el
+-- dinero real — antes del arreglo devolvían 0 porque no eran
+-- security definer. CH-02 tiene una especial validada de 1,200 (lo
+-- único que suma: su R-03 es clase empresa). También se prueban los
+-- tres modos de visibilidad y el ganado del coordinador (700, de
+-- los bloques 8-9).
+do $$
+declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
+declare ch2 uuid := 'a0000000-0000-0000-0000-000000000105';
+declare coord uuid := 'a0000000-0000-0000-0000-000000000103';
+declare g record; r record;
+begin
+  begin
+    create role prueba_anon nologin;
+  exception when duplicate_object then null;
+  end;
+  execute 'grant select on anotaciones, opciones_empresa to prueba_anon';
+
+  perform set_config('role', 'prueba_anon', true);
+  select * into g from pr_mi_ganado(emp, ch2);
+  assert g.modo = 'todo' and g.total = 1200,
+    'novedades saldo: como anon, CH-02 ve sus 1,200 (no cero)';
+  select * into r from pr_resumen_chofer(emp, ch2, current_date, current_date);
+  assert r.num_extra = 1 and r.total = 1200,
+    'novedades saldo: como anon, el resumen trae su extra y su total';
+  perform set_config('role', 'none', true);
+
+  -- Los tres modos de ver_ganado, con datos de semilla.
+  update opciones_empresa set ver_ganado = 'ultimo_dia' where empresa_id = emp;
+  select * into g from pr_mi_ganado(emp, ch2);
+  assert g.modo = 'ultimo_dia' and g.total = 1200 and g.desde = g.hasta
+     and g.hasta = current_date,
+    'novedades saldo: ultimo_dia muestra solo el último día (1,200)';
+  update opciones_empresa set ver_ganado = 'nada' where empresa_id = emp;
+  select * into g from pr_mi_ganado(emp, ch2);
+  assert g.modo = 'nada' and g.total is null,
+    'novedades saldo: oculto (nada) no muestra ningún monto';
+  update opciones_empresa set ver_ganado = 'todo' where empresa_id = emp;
+  select * into g from pr_mi_ganado(emp, ch2);
+  assert g.modo = 'todo' and g.total = 1200 and g.desde <= current_date
+     and g.hasta = current_date,
+    'novedades saldo: todo muestra el total del período (1,200)';
+
+  -- El coordinador que hace rutas ve su saldo igual que un chofer.
+  select * into g from pr_mi_ganado(emp, coord);
+  assert g.modo = 'todo' and g.total = 700,
+    'novedades saldo: el coordinador ve su ganado (700)';
+end $$;
+
 select 'PRUEBA DE NOVEDADES OK' as resultado;

@@ -254,3 +254,55 @@ begin
   ), '[]'::jsonb);
 end;
 $$;
+
+-- ============ EL SALDO DEL CHOFER: SECURITY DEFINER (ARREGLO) ============
+-- BUG (reportado por Miguel): «el saldo no le aparece a los choferes
+-- aunque la opción esté activa». Causa: pr_resumen_chofer y
+-- pr_mi_ganado eran las ÚNICAS funciones que la app llama por
+-- PostgREST SIN `security definer`. La app entra con la clave anónima
+-- y TODAS las tablas tienen RLS sin políticas (el acceso real es por
+-- las funciones definer), así que esas dos corrían como `anon`, no
+-- veían ni una fila de `anotaciones`/`opciones_empresa` y devolvían
+-- total 0 / conteos 0: la app pintaba «RD$0» aunque el chofer tuviera
+-- extras aprobadas. En las pruebas locales no se veía porque corren
+-- como superusuario, que salta la RLS. Se redefinen IGUAL que en
+-- esquema.sql, solo añadiendo `security definer` (la regla del
+-- proyecto). pr_resumen_periodo (panel) no sufría el bug: es definer
+-- y su llamada interna a pr_resumen_chofer ya corría como dueño.
+create or replace function pr_resumen_chofer(p_empresa uuid, p_chofer uuid, p_desde date, p_hasta date)
+returns table (num_empresa int, num_extra int, total_empresa numeric, total_extra numeric, total numeric)
+language sql stable security definer as $$
+  select
+    count(*) filter (where clase = 'empresa')::int,
+    count(*) filter (where clase = 'extra')::int,
+    0::numeric,
+    coalesce(sum(precio_aplicado) filter (where clase = 'extra'), 0),
+    coalesce(sum(precio_aplicado) filter (where clase = 'extra'), 0)
+  from anotaciones
+  where empresa_id = p_empresa and chofer_id = p_chofer
+    and estado = 'aprobada' and fecha between p_desde and p_hasta;
+$$;
+
+create or replace function pr_mi_ganado(p_empresa uuid, p_chofer uuid)
+returns table (modo text, desde date, hasta date, total numeric)
+language plpgsql stable security definer as $$
+declare o opciones_empresa; ultimo date;
+begin
+  o := pr_opciones(p_empresa);
+  if o.empresa_id is null or o.ver_ganado = 'todo' then
+    return query select 'todo', date_trunc('month', current_date)::date, current_date,
+      (select r.total from pr_resumen_chofer(p_empresa, p_chofer, date_trunc('month', current_date)::date, current_date) r);
+  elsif o.ver_ganado = 'ultimo_dia' then
+    select max(fecha) into ultimo from anotaciones
+      where empresa_id = p_empresa and chofer_id = p_chofer and estado = 'aprobada';
+    if ultimo is null then
+      return query select 'ultimo_dia', current_date, current_date, 0::numeric;
+    else
+      return query select 'ultimo_dia', ultimo, ultimo,
+        (select r.total from pr_resumen_chofer(p_empresa, p_chofer, ultimo, ultimo) r);
+    end if;
+  else
+    return query select 'nada', current_date, current_date, null::numeric;
+  end if;
+end;
+$$;
