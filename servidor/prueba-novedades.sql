@@ -158,10 +158,11 @@ begin
   assert n = 0, 'novedades voucher: CH-02 no ve el voucher de CH-01';
 end $$;
 
--- 7) Coordinador: ya NO es rechazado; su foto es de reportes. Un
--- reporte nuevo de un chofer aparece en reportesPendientes con el
--- nombre del autor; el suyo propio también (destacado) y en reportes.
--- Al resolverse, sale de pendientes.
+-- 7) Coordinador: ya NO es rechazado y su foto es COMPLETA (también
+-- hace rutas: clientes y rutas como un chofer, más sus reportes y los
+-- pendientes de la empresa). Un reporte nuevo de un chofer aparece en
+-- reportesPendientes con el nombre del autor; el suyo propio también
+-- (destacado) y en reportes. Al resolverse, sale de pendientes.
 do $$
 declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
 declare coord uuid := 'a0000000-0000-0000-0000-000000000103';
@@ -169,9 +170,13 @@ declare d jsonb; n int; x jsonb; r jsonb;
 begin
   d := pr_datos_chofer(emp, coord);
   select jsonb_array_length(d -> 'clientes') into n;
-  assert n = 0, 'novedades coord: sin clientes (foto mínima)';
+  assert n = 2, 'novedades coord: baja los 2 clientes, como un chofer';
+  select jsonb_array_length(d -> 'rutas') into n;
+  assert n = 5, 'novedades coord: baja las 5 rutas, como un chofer';
   select jsonb_array_length(d -> 'anotaciones') into n;
-  assert n = 0, 'novedades coord: sin anotaciones (foto mínima)';
+  assert n = 0, 'novedades coord: aún no tiene anotaciones propias';
+  select jsonb_array_length(d -> 'vouchers') into n;
+  assert n = 0, 'novedades coord: aún no tiene vouchers';
   assert d ? 'reportesPendientes',
     'novedades coord: la foto trae reportesPendientes';
   select jsonb_array_length(d -> 'reportesPendientes') into n;
@@ -209,7 +214,83 @@ begin
   assert n = 1, 'novedades coord: el resuelto sale de pendientes';
 end $$;
 
--- 8) Seguridad tras el drop + recreate: los roles de oficina siguen
+-- 8) El coordinador ANOTA como un chofer: anota R-04, que CH-01 ya
+-- tenía aprobada hoy (…0403) → CONFLICTO coordinador↔chofer (y la de
+-- CH-01 también cae en conflicto). Se resuelve «ambas»: las dos
+-- cuentan. Su clase sale del cupo de su empresa (empresa, es su
+-- primera del día). Después anota una especial, administración la
+-- valida a 700 y su ganado (pr_mi_ganado, sin filtro de rol) la suma.
+do $$
+declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
+declare coord uuid := 'a0000000-0000-0000-0000-000000000103';
+declare nueva anotaciones; d jsonb; a jsonb; g record;
+begin
+  nueva := pr_anotar_ruta(emp, coord,
+                          'a0000000-0000-0000-0000-000000000304');
+  assert nueva.estado = 'conflicto' and nueva.clase = 'empresa',
+    'novedades coord-ruta: su R-04 nace en conflicto y clase empresa';
+  d := pr_datos_chofer(emp, 'a0000000-0000-0000-0000-000000000104');
+  select x into a from jsonb_array_elements(d -> 'anotaciones') x
+  where x ->> 'id' = 'a0000000-0000-0000-0000-000000000403';
+  assert a ->> 'estado' = 'conflicto',
+    'novedades coord-ruta: la R-04 de CH-01 también cae en conflicto';
+
+  perform pr_resolver_conflicto(nueva.id,
+                                'a0000000-0000-0000-0000-000000000102', 'ambas');
+  d := pr_datos_chofer(emp, coord);
+  select x into a from jsonb_array_elements(d -> 'anotaciones') x
+  where x ->> 'id' = nueva.id::text;
+  assert a ->> 'estado' = 'aprobada' and a ->> 'resolucion' = 'ambas',
+    'novedades coord-ruta: resuelto «ambas», la suya cuenta';
+
+  nueva := pr_anotar_especial(emp, coord, 'Coordinación: llevar documentos a la planta');
+  assert nueva.estado = 'especial_pendiente',
+    'novedades coord-ruta: su especial nace pendiente';
+  perform pr_validar_especial(nueva.id,
+                              'a0000000-0000-0000-0000-000000000102', 700);
+  select * into g from pr_mi_ganado(emp, coord);
+  assert g.modo = 'todo' and g.total = 700,
+    'novedades coord-ruta: su ganado suma la especial validada (700)';
+end $$;
+
+-- 9) Pagos: el resumen del período incluye al coordinador CON
+-- anotaciones (y su dinero), no incluye a un coordinador sin
+-- anotaciones ni a la administración; el voucher del coordinador se
+-- genera y baja en su foto con el total de su especial.
+do $$
+declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
+declare coord uuid := 'a0000000-0000-0000-0000-000000000103';
+declare coord2 usuarios; n int; d jsonb; v jsonb;
+begin
+  select count(*) into n from pr_resumen_periodo(emp, current_date, current_date) rp
+  where rp.chofer_id = coord and rp.num_empresa = 1 and rp.num_extra = 1
+    and rp.total = 700;
+  assert n = 1, 'novedades coord-pagos: el resumen lo trae con su dinero';
+  select count(*) into n from pr_resumen_periodo(emp, current_date, current_date) rp
+  where rp.chofer_id = 'a0000000-0000-0000-0000-000000000102';
+  assert n = 0, 'novedades coord-pagos: la administración no sale en el resumen';
+  select count(*) into n from pr_resumen_periodo(emp, current_date, current_date) rp
+  where rp.chofer_id = 'a0000000-0000-0000-0000-000000000104';
+  assert n = 1, 'novedades coord-pagos: los choferes salen como siempre';
+
+  coord2 := pr_crear_usuario(emp, 'Coordinador Dos', 'COORD2', 'coordinador', '1234');
+  select count(*) into n from pr_resumen_periodo(emp, current_date, current_date) rp
+  where rp.chofer_id = coord2.id;
+  assert n = 0, 'novedades coord-pagos: sin anotaciones, el coordinador no sale';
+
+  perform pr_generar_voucher(emp, coord, current_date, current_date);
+  d := pr_datos_chofer(emp, coord);
+  select jsonb_array_length(d -> 'vouchers') into n;
+  assert n = 1, 'novedades coord-pagos: el coordinador ve su voucher';
+  v := d -> 'vouchers' -> 0;
+  assert (v ->> 'total')::numeric = 700 and (v ->> 'id') is not null,
+    'novedades coord-pagos: su voucher totaliza su especial (700)';
+  select count(*) into n from jsonb_array_elements(v -> 'detalle') x
+  where (x ->> 'precio')::numeric = 700;
+  assert n = 1, 'novedades coord-pagos: el detalle trae la especial a 700';
+end $$;
+
+-- 10) Seguridad tras el drop + recreate: los roles de oficina siguen
 -- rechazados y queda UNA sola versión de la función.
 do $$
 declare ok boolean := false; n int;
