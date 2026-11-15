@@ -60,28 +60,20 @@
 -- superadmin siguen rechazados en pr_datos_chofer con el mismo
 -- mensaje de antes.
 
-drop function if exists pr_datos_chofer(uuid, uuid);
-
-create function pr_datos_chofer(p_empresa uuid, p_chofer uuid)
-returns jsonb language plpgsql stable security definer as $$
+-- ============ EMPRESA OPERATIVA: LA VERIFICACIÓN DE TODA LA APP ============
+-- TODAS las operaciones de la app (ver datos, anotar ruta, ruta
+-- especial, enviar reporte) exigen empresa ACTIVA y licencia vigente,
+-- con mensajes claros y distintos — los mismos de pr_iniciar_sesion.
+-- (Antes, anotar/especial/reporte solo miraban pr_licencia_ok y
+-- rechazaban todo con el mensaje genérico «Licencia inactiva», y
+-- pr_datos_chofer ni siquiera miraba: con la empresa desactivada la
+-- app seguía mostrando las rutas como si nada.)
+create or replace function pr_exigir_empresa_operativa(p_empresa uuid)
+returns void language plpgsql stable security definer as $$
 declare
-  u usuarios;
   e empresas;
   lic licencias;
-  foto jsonb;
 begin
-  select * into u from usuarios
-  where id = p_chofer and empresa_id = p_empresa and activo
-    and rol in ('chofer', 'coordinador');
-  if u.id is null then
-    raise exception 'Chofer no encontrado en esta empresa';
-  end if;
-
-  -- Empresa activa y licencia vigente, igual que en pr_iniciar_sesion:
-  -- la app persiste la sesión en el teléfono y revalida contra esta
-  -- función al reabrir; si la empresa se desactivó o la licencia
-  -- venció/se suspendió, la revalidación lo detecta y la app expulsa
-  -- la sesión guardada con este mensaje.
   select * into e from empresas where id = p_empresa;
   if e.id is null or not e.activa then
     raise exception 'Tu empresa está inactiva. Contacta a RutaNeto.';
@@ -97,6 +89,29 @@ begin
   if lic.estado = 'vencida' or (lic.vence is not null and lic.vence < current_date) then
     raise exception 'La licencia de tu empresa está vencida. Contacta a RutaNeto para renovarla.';
   end if;
+end;
+$$;
+
+drop function if exists pr_datos_chofer(uuid, uuid);
+
+create function pr_datos_chofer(p_empresa uuid, p_chofer uuid)
+returns jsonb language plpgsql stable security definer as $$
+declare
+  u usuarios;
+  foto jsonb;
+begin
+  select * into u from usuarios
+  where id = p_chofer and empresa_id = p_empresa and activo
+    and rol in ('chofer', 'coordinador');
+  if u.id is null then
+    raise exception 'Chofer no encontrado en esta empresa';
+  end if;
+
+  -- Empresa activa y licencia vigente: la app persiste la sesión en
+  -- el teléfono y revalida contra esta función al reabrir (y en cada
+  -- sondeo); si la empresa se desactivó o la licencia venció/se
+  -- suspendió, la app expulsa la sesión guardada con ese mensaje.
+  perform pr_exigir_empresa_operativa(p_empresa);
 
   -- La foto completa, igual para chofer y coordinador: el coordinador
   -- también hace rutas y ve sus clientes, rutas, anotaciones,
@@ -304,5 +319,120 @@ begin
   else
     return query select 'nada', current_date, current_date, null::numeric;
   end if;
+end;
+$$;
+
+-- ============ ANOTAR Y REPORTAR: TAMBIÉN CON EMPRESA OPERATIVA ============
+-- pr_anotar_ruta, pr_anotar_especial y pr_enviar_reporte redefinidas
+-- con el cuerpo de ajustes-2026-11-15.sql, cambiando SOLO la
+-- verificación inicial: en vez del genérico «Licencia inactiva» de
+-- pr_licencia_ok, ahora pr_exigir_empresa_operativa distingue
+-- empresa inactiva / sin licencia / suspendida / vencida, para que
+-- la app pueda expulsar la sesión con el mensaje exacto.
+create or replace function pr_anotar_ruta(p_empresa uuid, p_chofer uuid, p_ruta uuid,
+                                          p_fecha date default current_date, p_nota text default null)
+returns anotaciones language plpgsql security definer as $$
+declare
+  r rutas;
+  nueva anotaciones;
+  duplicada boolean;
+begin
+  perform pr_exigir_empresa_operativa(p_empresa);
+  perform pr_revisar_plazo(p_empresa, p_fecha);
+  select * into r from rutas where id = p_ruta and empresa_id = p_empresa and activa;
+  if r.id is null then raise exception 'Ruta no existe o esta inactiva'; end if;
+
+  -- Antifraude por empresa + cliente + ruta + fecha: como cada ruta
+  -- pertenece a un solo cliente, el cliente de la anotación es el de la ruta.
+  duplicada := exists (
+    select 1 from anotaciones a
+    where a.empresa_id = p_empresa and a.ruta_id = p_ruta and a.fecha = p_fecha
+      and a.cliente_id is not distinct from r.cliente_id
+      and a.tipo = 'normal' and a.chofer_id <> p_chofer
+      and a.estado in ('aprobada','conflicto')
+  );
+
+  if duplicada then
+    update anotaciones set estado = 'conflicto'
+    where empresa_id = p_empresa and ruta_id = p_ruta and fecha = p_fecha
+      and cliente_id is not distinct from r.cliente_id
+      and tipo = 'normal' and chofer_id <> p_chofer and estado = 'aprobada';
+    insert into anotaciones (empresa_id, chofer_id, ruta_id, cliente_id, tipo, nota, fecha, clase, estado, precio_aplicado)
+    values (p_empresa, p_chofer, p_ruta, r.cliente_id, 'normal', p_nota, p_fecha,
+            pr_clase_del_dia(p_empresa, p_chofer, p_fecha), 'conflicto', r.precio)
+    returning * into nueva;
+  else
+    insert into anotaciones (empresa_id, chofer_id, ruta_id, cliente_id, tipo, nota, fecha, clase, estado, precio_aplicado)
+    values (p_empresa, p_chofer, p_ruta, r.cliente_id, 'normal', p_nota, p_fecha,
+            pr_clase_del_dia(p_empresa, p_chofer, p_fecha), 'aprobada', r.precio)
+    returning * into nueva;
+  end if;
+  return nueva;
+end;
+$$;
+
+create or replace function pr_anotar_especial(p_empresa uuid, p_chofer uuid, p_descripcion text,
+                                              p_cliente uuid default null,
+                                              p_fecha date default current_date, p_nota text default null)
+returns anotaciones language plpgsql security definer as $$
+declare
+  o opciones_empresa;
+  nueva anotaciones;
+begin
+  perform pr_exigir_empresa_operativa(p_empresa);
+  o := pr_opciones(p_empresa);
+  if o.empresa_id is not null and not o.boton_especial then
+    raise exception 'Esta empresa no permite rutas especiales';
+  end if;
+  if p_cliente is not null and not exists (
+    select 1 from clientes where id = p_cliente and empresa_id = p_empresa and activo
+  ) then
+    raise exception 'Esa empresa cliente no existe o esta inactiva';
+  end if;
+  perform pr_revisar_plazo(p_empresa, p_fecha);
+  insert into anotaciones (empresa_id, chofer_id, cliente_id, tipo, descripcion, nota, fecha, clase, estado, precio_aplicado)
+  values (p_empresa, p_chofer, p_cliente, 'especial', p_descripcion, p_nota, p_fecha, 'extra', 'especial_pendiente', null)
+  returning * into nueva;
+  return nueva;
+end;
+$$;
+
+create or replace function pr_enviar_reporte(p_empresa uuid, p_autor uuid,
+                                             p_tipo text, p_mensaje text)
+returns jsonb language plpgsql security definer as $$
+declare
+  a usuarios;
+  rep reportes;
+begin
+  if p_tipo not in ('calle_cerrada','averia','accidente','retraso','seguridad','otro') then
+    raise exception 'Tipo de reporte no válido: %', p_tipo;
+  end if;
+  if p_mensaje is null or length(trim(p_mensaje)) = 0 then
+    raise exception 'El reporte necesita un mensaje';
+  end if;
+  select * into a from usuarios
+  where id = p_autor and empresa_id = p_empresa and activo;
+  if a.id is null then
+    raise exception 'El autor no es un usuario activo de esta empresa';
+  end if;
+  if a.rol not in ('chofer','coordinador') then
+    raise exception 'Solo choferes y coordinadores pueden enviar reportes';
+  end if;
+  perform pr_exigir_empresa_operativa(p_empresa);
+
+  insert into reportes (empresa_id, autor_id, tipo, mensaje)
+  values (p_empresa, p_autor, p_tipo, trim(p_mensaje))
+  returning * into rep;
+
+  return jsonb_build_object(
+    'id', rep.id,
+    'empresaId', rep.empresa_id,
+    'autor', jsonb_build_object('id', a.id, 'nombre', a.nombre, 'codigo', a.codigo, 'rol', a.rol),
+    'esCoordinador', a.rol = 'coordinador',
+    'tipo', rep.tipo,
+    'mensaje', rep.mensaje,
+    'estado', rep.estado,
+    'creadaEn', rep.creada_en
+  );
 end;
 $$;

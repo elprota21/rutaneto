@@ -450,4 +450,50 @@ begin
     'novedades saldo: el coordinador ve su ganado (700)';
 end $$;
 
+-- 14) EMPRESA DESACTIVADA = APP BLOQUEADA: con la empresa inactiva,
+-- TODAS las operaciones de la app rechazan con el mensaje claro
+-- (datos, anotar ruta, ruta especial y enviar reporte); con la
+-- licencia suspendida pasa igual; al reactivar todo, todo vuelve.
+do $$
+declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
+declare ch1 uuid := 'a0000000-0000-0000-0000-000000000104';
+declare msg text; nueva anotaciones;
+begin
+  update empresas set activa = false where id = emp;
+
+  begin perform pr_datos_chofer(emp, ch1);
+    raise exception 'debió rechazar los datos';
+  exception when others then msg := sqlerrm; end;
+  assert msg like 'Tu empresa está inactiva%',
+    'novedades bloqueo: sin datos con la empresa inactiva';
+  begin perform pr_anotar_ruta(emp, ch1, 'a0000000-0000-0000-0000-000000000305');
+    raise exception 'debió rechazar la anotación';
+  exception when others then msg := sqlerrm; end;
+  assert msg like 'Tu empresa está inactiva%',
+    'novedades bloqueo: sin anotar ruta con la empresa inactiva';
+  begin perform pr_anotar_especial(emp, ch1, 'Especial de prueba bloqueada');
+    raise exception 'debió rechazar la especial';
+  exception when others then msg := sqlerrm; end;
+  assert msg like 'Tu empresa está inactiva%',
+    'novedades bloqueo: sin especial con la empresa inactiva';
+  begin perform pr_enviar_reporte(emp, ch1, 'otro', 'Reporte de prueba bloqueado');
+    raise exception 'debió rechazar el reporte';
+  exception when others then msg := sqlerrm; end;
+  assert msg like 'Tu empresa está inactiva%',
+    'novedades bloqueo: sin reporte con la empresa inactiva';
+
+  update empresas set activa = true where id = emp;
+  update licencias set estado = 'suspendida' where empresa_id = emp;
+  begin perform pr_anotar_ruta(emp, ch1, 'a0000000-0000-0000-0000-000000000305');
+    raise exception 'debió rechazar por licencia suspendida';
+  exception when others then msg := sqlerrm; end;
+  assert msg like 'La licencia de tu empresa está suspendida%',
+    'novedades bloqueo: sin anotar con la licencia suspendida';
+  update licencias set estado = 'activa' where empresa_id = emp;
+
+  nueva := pr_anotar_ruta(emp, ch1, 'a0000000-0000-0000-0000-000000000305');
+  assert nueva.estado = 'aprobada',
+    'novedades bloqueo: reactivada la empresa, anotar vuelve a funcionar';
+end $$;
+
 select 'PRUEBA DE NOVEDADES OK' as resultado;
