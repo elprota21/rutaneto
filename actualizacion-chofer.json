@@ -1,5 +1,1 @@
-{
-  "versionCode": 4,
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/demo-0.6/RutaNeto-Chofer-demo.apk",
-  "notas": "Nuevo: aviso del plazo para anotar tus rutas, reportes a administración (calle cerrada, avería, accidente), entrada para el coordinador y cambiar tu PIN desde Ajustes."
-}
+{"apkUrl":"https://github.com/elprota21/rutaneto/releases/download/demo-0.7/RutaNeto-Chofer-demo.apk","notas":"Nuevo en 1.4.0: la app está EN VIVO — se refresca sola cada 30 segundos y te avisa con sonido y vibración cuando validan o rechazan tu ruta especial, se resuelve un conflicto, administración resuelve tu reporte o sale un voucher nuevo. El coordinador también puede hacer rutas. Tu saldo ya se ve bien. La sesión ya no se cierra al cerrar la app: entras directo. Y el actualizador quedó corregido: comprueba al abrir y al volver a la app.","versionCode":5,"versionName":"1.4.0"}
