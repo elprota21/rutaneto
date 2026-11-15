@@ -1,5 +1,5 @@
 {
-  "versionCode": 3,
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/demo-0.5/RutaNeto-Chofer-demo.apk",
-  "notas": "¡Ya es oficial! La app se conecta a la base de datos real de tu empresa: entra con tu código y PIN (CH-01 / 1234) y tus rutas quedan guardadas en el servidor."
+  "versionCode": 4,
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/demo-0.6/RutaNeto-Chofer-demo.apk",
+  "notas": "Nuevo: aviso del plazo para anotar tus rutas, reportes a administración (calle cerrada, avería, accidente), entrada para el coordinador y cambiar tu PIN desde Ajustes."
 }
