@@ -1,0 +1,16 @@
+# Resultado — aviso de caducidad de licencia
+
+- **Archivos nuevos:** `servidor/caducidad.sql` (se aplica tras esquema + conexion + semilla + app-datos + ajustes + acceso-roles + auditoria; idempotente, verificado aplicándolo dos veces) y `servidor/prueba-caducidad.sql`. Subidos a `elprota21/rutaneto` en `servidor/`. URLs raw verificadas (HTTP 200):
+  - https://raw.githubusercontent.com/elprota21/rutaneto/master/servidor/caducidad.sql
+  - https://raw.githubusercontent.com/elprota21/rutaneto/master/servidor/prueba-caducidad.sql
+- **Entorno:** PostgreSQL 16 local desechable (clúster `/tmp/pg-rutaneto`, puerto 54329), pgcrypto en esquema `extensions` como en Supabase.
+- **Diseño:** el cálculo de días restantes vive en el servidor, donde los clientes ya miran la licencia (`diasRestantes = vence - current_date`, entero, negativo si ya pasó, null si la licencia no tiene fecha; `porVencer` = 0 ≤ diasRestantes ≤ 30). Solo se AÑADEN campos; ningún campo existente cambia de forma:
+  - `pr_iniciar_sesion` (copia fiel de la versión de auditoria.sql — contexto por puerta y registro de `inicio_sesion` intactos, verificado por diff): el objeto `licencia` de la sesión gana `diasRestantes` y `porVencer`. El superadmin sin empresa sigue con `licencia` null.
+  - `pr_snapshot` (copia fiel de la versión de ajustes, verificado por diff): su salida no traía la licencia; gana el objeto `licencia` mínimo {vence, estado, diasRestantes, porVencer} (null si la empresa no tiene licencia). El resto de la foto no cambia.
+  - `pr_admin_resumen` (copia fiel de la versión de ajustes, verificado por diff): cada empresa gana `diasRestantes` y `porVencer` junto a su licencia; los totales ganan `porVencer` (licencia ACTIVA a 0–30 días) y `vencidas` (días restantes < 0 y licencia NO suspendida: la suspendida es decisión de Miguel, no una caducidad por cobrar). Siempre sobre la ÚLTIMA licencia de cada empresa, como ya hacía el resumen.
+- **Pruebas (todas en verde):**
+  - Base A (esquema solo): `prueba-logica.sql` OK.
+  - Base B (cadena completa → caducidad): `prueba-app.sql` OK, `prueba-conexion.sql` OK, `prueba-ajustes.sql` OK, `prueba-roles.sql` OK, `prueba-logica.sql` OK.
+  - Base C (cadena completa, semilla fresca): `prueba-auditoria.sql` OK (el login concedido se sigue registrando y la puerta equivocada se sigue rechazando con las funciones recreadas).
+  - Base D (cadena completa, semilla fresca; caducidad aplicado dos veces): **PRUEBA DE CADUCIDAD OK** — semilla (vence en 1 año): sin aviso y superadmin con licencia null; vence en 10 días: sesión, snapshot y resumen con `diasRestantes=10` y `porVencer=true`, y `totales.porVencer=1`; vence en 90 días: `porVencer=false` en todo; bordes: hoy (0) y 30 días SÍ avisan, 31 ya no, y vencer hoy todavía deja entrar; vencida ayer: login rechazado con el mensaje de siempre, `diasRestantes=-1` en snapshot y resumen, `totales.vencidas=1`; suspendida con fecha pasada o dentro de la ventana: NO cuenta ni como vencida ni como por vencer.
+- **Pendiente (fuera de esta ronda):** aplicar `caducidad.sql` en el editor SQL del proyecto Supabase «rutaneto» (después de `auditoria.sql`) y que panel/app/panel-admin pinten el aviso con estos campos (banner en el panel de la empresa y en la app al entrar, y los conteos en el panel de Miguel).
