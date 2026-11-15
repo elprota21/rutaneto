@@ -168,10 +168,19 @@ begin
   exception when others then ok := true; msg := sqlerrm; end;
   assert ok and msg like '%no existe%', 'ajustes 3: borrar un cliente inexistente da error';
 
-  -- El superadmin también puede borrar (limpieza de lo creado aquí).
-  perform pr_borrar_cliente(
+  -- Regla del dueño (permisos-dueno.sql): el superadmin YA NO borra
+  -- clientes de una empresa — lo hace la administración de la empresa.
+  ok := false; msg := '';
+  begin perform pr_borrar_cliente(
     (select id from clientes where nombre = 'Cliente de TP'),
     'a0000000-0000-0000-0000-000000000101');
+  exception when others then ok := true; msg := sqlerrm; end;
+  assert ok and msg like '%no opera dentro de la empresa%',
+    'ajustes 3: el superadmin ya NO puede borrar clientes (regla del dueño)';
+  -- Limpieza de lo creado aquí: lo borra el admin de Transporte Prueba.
+  perform pr_borrar_cliente(
+    (select id from clientes where nombre = 'Cliente de TP'),
+    (select id from usuarios where codigo = 'TP-ADMIN'));
   delete from rutas where id = r.id;
 end $$;
 
