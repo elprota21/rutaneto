@@ -9,6 +9,12 @@
 -- vibración) cuando pasa algo suyo. Para detectar esos cambios la foto
 -- del chofer necesitaba tres cosas que hoy no baja:
 --
+--   autorNombre:        TODA lista de reportes lleva el nombre real
+--                       de quien lo envió (reportes, reportesPendientes
+--                       y pr_listar_reportes, redefinida abajo): en la
+--                       app y en el panel un reporte de coordinador se
+--                       ve «<Nombre> · Coordinador», nunca una etiqueta
+--                       genérica sin nombre.
 --   reportes:           los reportes DEL PROPIO usuario (id, tipo,
 --                       texto, estado, creadaEn), para saber cuándo
 --                       administración resuelve uno suyo. Hasta ahora la
@@ -128,6 +134,7 @@ begin
       select jsonb_agg(jsonb_build_object(
         'id', rp.id, 'tipo', rp.tipo, 'texto', rp.mensaje,
         'estado', rp.estado, 'esCoordinador', u.rol = 'coordinador',
+        'autorNombre', u.nombre,
         'creadaEn', rp.creada_en)
         order by rp.creada_en desc)
       from (
@@ -145,6 +152,7 @@ begin
         select jsonb_agg(jsonb_build_object(
           'id', rp.id, 'tipo', rp.tipo, 'texto', rp.mensaje,
           'choferNombre', au.nombre,
+          'autorNombre', au.nombre,
           'esCoordinador', au.rol = 'coordinador',
           'creadaEn', rp.creada_en)
           order by rp.creada_en desc)
@@ -178,4 +186,48 @@ language sql stable security definer as $$
                where a.empresa_id = p_empresa and a.chofer_id = u.id
                  and a.fecha between p_desde and p_hasta)))
   order by u.nombre;
+$$;
+
+-- ============ REPORTES DEL PANEL: CON EL NOMBRE DEL AUTOR ============
+-- pr_listar_reportes (de ajustes-2026-11-15.sql) redefinida SIN
+-- cambiar firma ni campos: cada reporte suma `autorNombre` (el
+-- nombre real de quien lo envió; el objeto `autor` anidado se
+-- mantiene). Así el panel puede mostrar «<Nombre> · Coordinador»
+-- en vez de una etiqueta genérica.
+create or replace function pr_listar_reportes(p_empresa uuid, p_quien uuid)
+returns jsonb language plpgsql security definer as $$
+declare q usuarios;
+begin
+  select * into q from usuarios where id = p_quien and activo;
+  if q.id is null then raise exception 'Usuario no válido'; end if;
+  if q.rol = 'superadmin' then
+    null; -- el superadmin puede ver los reportes de cualquier empresa
+  elsif q.rol in ('empresa','coordinador') and q.empresa_id = p_empresa then
+    null;
+  else
+    raise exception 'No tienes permiso para ver los reportes de esta empresa';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(item order by es_nuevo desc, coord_nuevo desc, creada_en desc)
+    from (
+      select jsonb_build_object(
+        'id', r.id,
+        'autor', jsonb_build_object('nombre', u.nombre, 'codigo', u.codigo, 'rol', u.rol),
+        'autorNombre', u.nombre,
+        'esCoordinador', u.rol = 'coordinador',
+        'tipo', r.tipo,
+        'mensaje', r.mensaje,
+        'estado', r.estado,
+        'creadaEn', r.creada_en
+      ) as item,
+      (r.estado = 'nuevo') as es_nuevo,
+      (r.estado = 'nuevo' and u.rol = 'coordinador') as coord_nuevo,
+      r.creada_en as creada_en
+      from reportes r
+      join usuarios u on u.id = r.autor_id
+      where r.empresa_id = p_empresa
+    ) t
+  ), '[]'::jsonb);
+end;
 $$;

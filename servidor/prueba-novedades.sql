@@ -290,7 +290,53 @@ begin
   assert n = 1, 'novedades coord-pagos: el detalle trae la especial a 700';
 end $$;
 
--- 10) Seguridad tras el drop + recreate: los roles de oficina siguen
+-- 10) Nombre del autor en TODA lista de reportes: un reporte del
+-- coordinador devuelve su nombre real ('Coordinación Servivans') en
+-- sus propios `reportes`, en los `reportesPendientes` del coordinador
+-- y en pr_listar_reportes (la del panel), que además mantiene el
+-- objeto `autor` anidado. Un reporte de chofer lleva su nombre.
+do $$
+declare emp uuid := 'a0000000-0000-0000-0000-000000000001';
+declare coord uuid := 'a0000000-0000-0000-0000-000000000103';
+declare rc jsonb; rd jsonb; d jsonb; x jsonb; lista jsonb;
+begin
+  rc := pr_enviar_reporte(emp, coord, 'otro', 'Coordinación: cambio de turno en la planta');
+  rd := pr_enviar_reporte(emp, 'a0000000-0000-0000-0000-000000000104',
+                          'averia', 'El autobús 12 suena raro al frenar');
+
+  d := pr_datos_chofer(emp, coord);
+  select e into x from jsonb_array_elements(d -> 'reportes') e
+  where e ->> 'id' = rc ->> 'id';
+  assert x ->> 'autorNombre' = 'Coordinación Servivans'
+     and (x ->> 'esCoordinador')::boolean,
+    'novedades autor: su propio reporte trae su nombre y su rol';
+
+  select e into x from jsonb_array_elements(d -> 'reportesPendientes') e
+  where e ->> 'id' = rc ->> 'id';
+  assert x ->> 'autorNombre' = 'Coordinación Servivans'
+     and x ->> 'choferNombre' = 'Coordinación Servivans'
+     and (x ->> 'esCoordinador')::boolean,
+    'novedades autor: en pendientes el coordinador sale con su nombre';
+  select e into x from jsonb_array_elements(d -> 'reportesPendientes') e
+  where e ->> 'id' = rd ->> 'id';
+  assert x ->> 'autorNombre' = 'Carlos Méndez'
+     and not (x ->> 'esCoordinador')::boolean,
+    'novedades autor: en pendientes el chofer sale con su nombre';
+
+  lista := pr_listar_reportes(emp, 'a0000000-0000-0000-0000-000000000102');
+  select e into x from jsonb_array_elements(lista) e
+  where e ->> 'id' = rc ->> 'id';
+  assert x ->> 'autorNombre' = 'Coordinación Servivans'
+     and x -> 'autor' ->> 'nombre' = 'Coordinación Servivans'
+     and (x ->> 'esCoordinador')::boolean,
+    'novedades autor: el panel ve el nombre del coordinador';
+  select e into x from jsonb_array_elements(lista) e
+  where e ->> 'id' = rd ->> 'id';
+  assert x ->> 'autorNombre' = 'Carlos Méndez',
+    'novedades autor: el panel ve el nombre del chofer';
+end $$;
+
+-- 11) Seguridad tras el drop + recreate: los roles de oficina siguen
 -- rechazados y queda UNA sola versión de la función.
 do $$
 declare ok boolean := false; n int;
