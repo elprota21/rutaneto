@@ -1,6 +1,6 @@
 {
   "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.4.3/RutaNeto-Chofer-demo.apk",
-  "notas": "Nuevo en 1.4.3: CONFIRMACIÓN al anotar — al tocar una ruta la app te pregunta «¿Hiciste hoy esta ruta?» antes de anotarla, para que un toque sin querer no marque una ruta equivocada ni cree un conflicto con otro chofer. Y si tu empresa te asigna rutas, al abrir la app verás arriba «Tus rutas asignadas de hoy» con las que te tocan, y el sello «Asignada hoy» en la lista. Todo lo demás sigue igual: la app está EN VIVO, se refresca sola y tu sesión no se cierra.",
-  "versionCode": 8,
-  "versionName": "1.4.3"
+  "notas": "Ahora cada ruta muestra su HORA junto al código — la hora que la empresa le pone en el panel — también en «Tus rutas asignadas de hoy» y en la confirmación al anotar. Incluye además el nuevo diseño de la pantalla principal.",
+  "versionCode": 9,
+  "versionName": "1.5.0"
 }

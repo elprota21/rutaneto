@@ -133,7 +133,7 @@ declare
   coord constant uuid := 'a0000000-0000-0000-0000-000000000103';
 begin
   -- 1. Crear usuario.
-  u := pr_crear_usuario(emp, 'Chofer Permisos CRUD', 'CH-77', 'chofer', '1234', admin);
+  u := pr_crear_usuario(emp, 'Chofer Permisos CRUD', 'CH-77', 'chofer', '4321', admin);
   select * into r from registro_acciones where accion = 'usuario_creado'
   order by creada_en desc limit 1;
   assert r.actor_codigo = 'ADMIN' and r.detalle like '%CH-77%',
@@ -235,12 +235,18 @@ begin
   perform pr_quitar_feriado(emp, date '2030-12-25', admin);
 end $$;
 
--- 3) Compatibilidad: sin p_quien todo sigue funcionando como antes
---    y las filas del registro quedan sin actor (no se inventa).
+-- 3) Compatibilidad: sin p_quien el resto del CRUD sigue funcionando
+--    como antes y las filas del registro quedan sin actor (no se
+--    inventa). EXCEPCIÓN (correcciones 2026-11-19, crítico 4 de la
+--    auditoría): pr_crear_usuario SIN actor era el hueco que dejaba
+--    a cualquiera crearse un usuario con la anon key; ahora se
+--    rechaza, y la vía válida es con actor de la empresa + PIN
+--    explícito (la fila del registro SÍ lleva actor).
 do $$
 declare
-  u usuarios; c clientes; r record;
+  u usuarios; c clientes; r record; ok boolean;
   emp constant uuid := 'a0000000-0000-0000-0000-000000000001';
+  admin constant uuid := 'a0000000-0000-0000-0000-000000000102';
 begin
   c := pr_crear_cliente(emp, 'Cliente Compatibilidad');
   select * into r from registro_acciones where accion = 'cliente_creado'
@@ -248,11 +254,19 @@ begin
   assert r.actor_id is null and r.actor_codigo is null,
     'permisos-crud 3: sin p_quien, cliente_creado queda sin actor';
 
-  u := pr_crear_usuario(emp, 'Chofer Compatibilidad', 'CH-78', 'chofer');
-  assert u.id is not null, 'permisos-crud 3: crear usuario sin p_quien (y sin PIN) funciona';
+  ok := false;
+  begin
+    perform pr_crear_usuario(emp, 'Chofer Compatibilidad', 'CH-78', 'chofer');
+  exception when others then ok := true; end;
+  assert ok, 'permisos-crud 3: crear usuario SIN actor ahora se RECHAZA (crítico 4)';
+  assert not exists (select 1 from usuarios where codigo = 'CH-78'),
+    'permisos-crud 3: el intento sin actor no creó a nadie';
+
+  u := pr_crear_usuario(emp, 'Chofer Compatibilidad', 'CH-78', 'chofer', '4321', admin);
+  assert u.id is not null, 'permisos-crud 3: con actor y PIN explícito sí se crea';
   select * into r from registro_acciones where accion = 'usuario_creado'
   order by creada_en desc limit 1;
-  assert r.actor_id is null, 'permisos-crud 3: sin p_quien, usuario_creado queda sin actor';
+  assert r.actor_id = admin, 'permisos-crud 3: usuario_creado lleva al actor real';
 
   perform pr_cambiar_activo_usuario(u.id, false);
   assert not (select activo from usuarios where id = u.id),
@@ -283,7 +297,7 @@ do $$
 declare n int; args int;
 begin
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_crear_usuario';
-  assert n = 1 and args = 6, 'permisos-crud 4: una sola pr_crear_usuario, de 6 argumentos';
+  assert n = 1 and args = 7, 'permisos-crud 4: una sola pr_crear_usuario, de 7 argumentos (correcciones 2026-11-19: + p_token)';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_cambiar_activo_usuario';
   assert n = 1 and args = 3, 'permisos-crud 4: una sola pr_cambiar_activo_usuario, de 3 argumentos';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_crear_cliente';
@@ -291,9 +305,9 @@ begin
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_cambiar_activo_cliente';
   assert n = 1 and args = 3, 'permisos-crud 4: una sola pr_cambiar_activo_cliente, de 3 argumentos';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_crear_ruta';
-  assert n = 1 and args = 6, 'permisos-crud 4: una sola pr_crear_ruta, de 6 argumentos';
+  assert n = 1 and args = 7, 'permisos-crud 4: una sola pr_crear_ruta, de 7 argumentos (hora-rutas 2026-11-20: + p_hora)';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_actualizar_ruta';
-  assert n = 1 and args = 5, 'permisos-crud 4: una sola pr_actualizar_ruta, de 5 argumentos';
+  assert n = 1 and args = 6, 'permisos-crud 4: una sola pr_actualizar_ruta, de 6 argumentos (hora-rutas 2026-11-20: + p_hora)';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_cambiar_activa_ruta';
   assert n = 1 and args = 3, 'permisos-crud 4: una sola pr_cambiar_activa_ruta, de 3 argumentos';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_agregar_feriado';
@@ -301,7 +315,7 @@ begin
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_quitar_feriado';
   assert n = 1 and args = 3, 'permisos-crud 4: una sola pr_quitar_feriado, de 3 argumentos';
   select count(*), max(pronargs) into n, args from pg_proc where proname = 'pr_actualizar_opciones';
-  assert n = 1 and args = 3, 'permisos-crud 4: una sola pr_actualizar_opciones, de 3 argumentos';
+  assert n = 1 and args = 4, 'permisos-crud 4: una sola pr_actualizar_opciones, de 4 argumentos (correcciones 2026-11-19: + p_token)';
 end $$;
 
 select 'PRUEBA DE PERMISOS CRUD OK' as resultado;
