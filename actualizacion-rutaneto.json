@@ -1,6 +1,6 @@
 {
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.4.3/RutaNeto-Chofer.apk",
-  "notas": "Ahora cada ruta muestra su HORA junto al código — la hora que la empresa le pone en el panel — también en «Tus rutas asignadas de hoy» y en la confirmación al anotar. Incluye además el nuevo diseño de la pantalla principal.",
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.5.0/RutaNeto-Chofer.apk",
+  "notas": "Nuevo en 1.5.0: DISEÑO NUEVO por dentro — inicio con tu saludo y un botón gigante para registrar rutas, tarjetas con tus rutas de hoy, lo que llevas ganado y tu voucher; botones más grandes y estados con colores más claros. Anotar ahora va por pasos (1. empresa cliente, 2. ruta) y sigue pidiendo tu confirmación «¿Hiciste hoy esta ruta?» antes de anotar. La app está EN VIVO y se refresca sola. Las próximas actualizaciones llegan solas desde la app, sin códigos.",
   "versionCode": 9,
   "versionName": "1.5.0"
 }
