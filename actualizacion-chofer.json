@@ -1,1 +1,6 @@
-{"apkUrl":"https://github.com/elprota21/rutaneto/releases/download/apps-1.4.2/RutaNeto-Chofer-demo.apk","notas":"Nuevo en 1.4.2: corrección definitiva de las actualizaciones — la app estrena su firma permanente, así que esta versión y todas las próximas se instalan encima de la que tienes, sin errores de instalación. Todo lo demás sigue igual: la app está EN VIVO — se refresca sola cada 30 segundos y te avisa con sonido y vibración cuando validan o rechazan tu ruta especial, se resuelve un conflicto, administración resuelve tu reporte o sale un voucher nuevo. La sesión no se cierra al cerrar la app: entras directo.","versionCode":7,"versionName":"1.4.2"}
+{
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.4.3/RutaNeto-Chofer-demo.apk",
+  "notas": "Nuevo en 1.4.3: CONFIRMACIÓN al anotar — al tocar una ruta la app te pregunta «¿Hiciste hoy esta ruta?» antes de anotarla, para que un toque sin querer no marque una ruta equivocada ni cree un conflicto con otro chofer. Y si tu empresa te asigna rutas, al abrir la app verás arriba «Tus rutas asignadas de hoy» con las que te tocan, y el sello «Asignada hoy» en la lista. Todo lo demás sigue igual: la app está EN VIVO, se refresca sola y tu sesión no se cierra.",
+  "versionCode": 8,
+  "versionName": "1.4.3"
+}
