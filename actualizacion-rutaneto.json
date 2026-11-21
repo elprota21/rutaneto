@@ -1,6 +1,6 @@
 {
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.6.0/RutaNeto-Chofer.apk",
-  "notas": "Novedades 1.6.0: DISEÑO NUEVO — Inicio con saludo según la hora (buenos días, tardes o noches), contadores de tus rutas de hoy (registradas, pendientes y aprobadas) y tus rutas asignadas en UNA sola lista: cuando completas una, la misma fila se marca «Completada», sin duplicados. Registrar ruta ahora va en 4 pasos: empresa cliente, ruta, tipo de servicio (normal o especial) y confirmar con tu pregunta «¿Hiciste hoy esta ruta?». Nueva pestaña Historial con filtros por estado (todas, registrada, pendiente, aprobada, rechazada, en conflicto) y pestaña Perfil con tu cuenta. Y lo nuevo: MODO NOCHE en Perfil — tema oscuro para conducir de noche sin que la luz te dañe los ojos; tu preferencia queda guardada. Además, ahora te llega una notificación cuando la empresa te asigna rutas nuevas o te cambia los días.",
-  "versionCode": 10,
-  "versionName": "1.6.0"
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.6.1/RutaNeto-Chofer.apk",
+  "notas": "Novedades 1.6.1: EL VOUCHER SE MUEVE — ya no es una pestaña de la barra de abajo; ahora lo abres desde la tarjeta «Mi voucher» al final de Inicio (la misma pantalla de siempre, con tu comprobante del período y la descarga del PDF). La barra queda con Inicio, Historial y Perfil. Y NUEVO: TUTORIAL DE BIENVENIDA — la primera vez que entres, la app te enseña en 4 tarjetas cómo anotar rutas, ver tus asignadas de hoy, abrir tu voucher y activar el modo noche; puedes omitirlo y repetirlo cuando quieras desde Perfil → «Ver tutorial».",
+  "versionCode": 11,
+  "versionName": "1.6.1"
 }
