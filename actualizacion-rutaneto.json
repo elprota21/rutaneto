@@ -1,6 +1,6 @@
 {
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.6.1/RutaNeto-Chofer.apk",
-  "notas": "Novedades 1.6.1: EL VOUCHER SE MUEVE — ya no es una pestaña de la barra de abajo; ahora lo abres desde la tarjeta «Mi voucher» al final de Inicio (la misma pantalla de siempre, con tu comprobante del período y la descarga del PDF). La barra queda con Inicio, Historial y Perfil. Y NUEVO: TUTORIAL DE BIENVENIDA — la primera vez que entres, la app te enseña en 4 tarjetas cómo anotar rutas, ver tus asignadas de hoy, abrir tu voucher y activar el modo noche; puedes omitirlo y repetirlo cuando quieras desde Perfil → «Ver tutorial».",
-  "versionCode": 11,
-  "versionName": "1.6.1"
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.6.2/RutaNeto-Chofer.apk",
+  "notas": "Novedades 1.6.2: versión de mantenimiento — correcciones menores y mejoras internas de estabilidad. Tu cuenta, tus rutas, tus vouchers y tu historial quedan exactamente igual.",
+  "versionCode": 12,
+  "versionName": "1.6.2"
 }
