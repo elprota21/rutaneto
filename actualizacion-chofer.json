@@ -1,6 +1,6 @@
 {
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.7.1/RutaNeto-Chofer-demo.apk",
-  "notas": "Ahora la app muestra su versión instalada en tu Perfil y al pie de la pantalla de entrada, para que siempre sepas qué versión tienes. Todo lo demás queda igual.",
-  "versionCode": 14,
-  "versionName": "1.7.1"
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.7.2/RutaNeto-Chofer-demo.apk",
+  "notas": "Corrección: si la descarga de una actualización se traba por la conexión, la app ya no se queda congelada: avisa y te deja reintentar. Todo lo demás queda igual.",
+  "versionCode": 15,
+  "versionName": "1.7.2"
 }
