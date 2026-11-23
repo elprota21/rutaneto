@@ -1,6 +1,6 @@
 {
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.7.2/RutaNeto-Chofer.apk",
-  "notas": "Corrección: si la descarga de una actualización se traba por la conexión, la app ya no se queda congelada: avisa y te deja reintentar. Todo lo demás queda igual.",
-  "versionCode": 15,
-  "versionName": "1.7.2"
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.7.3/RutaNeto-Chofer.apk",
+  "notas": "Corrección importante: la pantalla principal se veía en blanco y el botón Registrar quedaba flotando en el centro. Ya se ve completa, con el botón en su sitio. Actualiza cuanto antes.",
+  "versionCode": 16,
+  "versionName": "1.7.3"
 }
