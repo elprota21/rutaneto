@@ -1,6 +1,6 @@
 {
-  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.7.0/RutaNeto-Chofer.apk",
-  "notas": "Novedades 1.7.0: botón REGISTRAR siempre visible en la barra de abajo; tu inicio ahora separa las rutas de empresa (incluidas en tu sueldo) de las extras y muestra tu actividad reciente; el historial se puede filtrar por hoy, esta semana, este mes o las fechas que elijas, y cada registro se abre con su detalle; si sales a mitad de un registro, tu avance queda guardado en el teléfono y la app te ofrece seguir donde ibas; nueva sección de Ayuda en tu perfil. Tu cuenta, tus rutas, tus vouchers y tu historial quedan exactamente igual.",
-  "versionCode": 13,
-  "versionName": "1.7.0"
+  "apkUrl": "https://github.com/elprota21/rutaneto/releases/download/apps-1.7.1/RutaNeto-Chofer.apk",
+  "notas": "Ahora la app muestra su versión instalada en tu Perfil y al pie de la pantalla de entrada, para que siempre sepas qué versión tienes. Todo lo demás queda igual.",
+  "versionCode": 14,
+  "versionName": "1.7.1"
 }
